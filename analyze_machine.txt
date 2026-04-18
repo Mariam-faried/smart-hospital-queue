@@ -1,0 +1,1 @@
+[info] Don't use 'BuildContext's across async gaps (C:\projects\smart_hospital_queue\lib\screens\patient\appointments_tab.dart:926:44)

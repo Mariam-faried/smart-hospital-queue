@@ -1,0 +1,574 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDocPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function appointmentDocPath(appointmentId) {
+      return /databases/$(database)/documents/appointments/$(appointmentId);
+    }
+
+    function callerDocExists() {
+      return isSignedIn() && exists(userDocPath(request.auth.uid));
+    }
+
+    function callerData() {
+      return get(userDocPath(request.auth.uid)).data;
+    }
+
+    function callerRole() {
+      return callerDocExists() ? callerData().role : null;
+    }
+
+    function callerStatus() {
+      return callerDocExists() ? callerData().accountStatus : null;
+    }
+
+    function isAdmin() {
+      return callerRole() == 'admin';
+    }
+
+    function isReceptionist() {
+      return callerRole() == 'receptionist';
+    }
+
+    function isDoctor() {
+      return callerRole() == 'doctor';
+    }
+
+    function isPatient() {
+      return callerRole() == 'patient';
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isActiveCaller() {
+      return callerDocExists() &&
+          (callerStatus() == null ||
+            (callerStatus() != 'suspended' &&
+              callerStatus() != 'rejected' &&
+              callerStatus() != 'pending'));
+    }
+
+    function validSelfPatientCreate(userId) {
+      return isOwner(userId) &&
+          request.resource.data.keys().hasOnly([
+            'patientId',
+            'name',
+            'email',
+            'phone',
+            'role',
+            'accountStatus',
+            'notificationsEnabled',
+            'memberSince',
+            'createdAt',
+            'legalAcceptedAt',
+            'legalVersion',
+            'favoriteDoctors',
+            'isVerified'
+          ]) &&
+          request.resource.data.role == 'patient' &&
+          (!('accountStatus' in request.resource.data) ||
+            request.resource.data.accountStatus == 'active') &&
+          (!('patientId' in request.resource.data) ||
+            request.resource.data.patientId == userId) &&
+          (!('legalAcceptedAt' in request.resource.data) ||
+            request.resource.data.legalAcceptedAt is timestamp) &&
+          (!('legalVersion' in request.resource.data) ||
+            request.resource.data.legalVersion is string) &&
+          (!('email' in request.resource.data) ||
+            (request.auth.token.email != null &&
+              request.resource.data.email == request.auth.token.email));
+    }
+
+    function validSelfUserUpdate(userId) {
+      return isOwner(userId) &&
+          isActiveCaller() &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'name',
+            'phone',
+            'notificationsEnabled',
+            'favoriteDoctors',
+            'updatedAt',
+            'imageUrl'
+          ]);
+    }
+
+    function appointmentCoreUnchanged() {
+      return request.resource.data.patientId == resource.data.patientId &&
+          request.resource.data.doctorId == resource.data.doctorId &&
+          request.resource.data.date == resource.data.date &&
+          request.resource.data.timeSlot == resource.data.timeSlot &&
+          request.resource.data.ticketNumber == resource.data.ticketNumber &&
+          request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function validPatientAppointmentCreate() {
+      return isPatient() &&
+          isActiveCaller() &&
+          request.resource.data.patientId == request.auth.uid &&
+          request.resource.data.doctorId is string &&
+          request.resource.data.date is string &&
+          request.resource.data.timeSlot is string &&
+          request.resource.data.status == 'waiting' &&
+          request.resource.data.keys().hasAll([
+            'patientId',
+            'doctorId',
+            'date',
+            'timeSlot',
+            'ticketNumber',
+            'status',
+            'createdAt'
+          ]) &&
+          (!('paymentStatus' in request.resource.data) ||
+            request.resource.data.paymentStatus in [
+              'pending',
+              'free',
+              'pay_at_hospital'
+            ]);
+    }
+
+    function validPatientAppointmentUpdate() {
+      return isPatient() &&
+          isActiveCaller() &&
+          resource.data.patientId == request.auth.uid &&
+          appointmentCoreUnchanged() &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'status',
+            'updatedAt',
+            'cancellationReason',
+            'paymentStatus',
+            'paymentMethod',
+            'paymentConfirmationShown',
+            'paymobOrderId'
+          ]) &&
+          (!('status' in request.resource.data.diff(resource.data).changedKeys()) ||
+            request.resource.data.status == 'cancelled') &&
+          (!('paymentStatus' in request.resource.data.diff(resource.data).changedKeys()) ||
+            request.resource.data.paymentStatus in [
+              'pending',
+              'pay_at_hospital',
+              'free'
+            ]) &&
+          (!('paymentMethod' in request.resource.data.diff(resource.data).changedKeys()) ||
+            request.resource.data.paymentMethod in [
+              'pending',
+              'pay_at_hospital'
+            ]);
+    }
+
+    function validStaffAppointmentUpdate() {
+      return appointmentCoreUnchanged() &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'status',
+            'updatedAt',
+            'checkInTime',
+            'checkedIn',
+            'checkedInAt',
+            'consultationStartTime',
+            'actualDurationMinutes',
+            'completedAt',
+            'noShowMarkedAt',
+            'patientsAhead',
+            'estimatedWaitTime',
+            'queuePosition',
+            'cancellationReason',
+            'cancelledAt',
+            'paymentStatus',
+            'paymentMethod',
+            'transactionId',
+            'paidAt',
+            'paymobOrderId',
+            'paymentConfirmationShown',
+            'slotLockId'
+          ]);
+    }
+
+    function validSlotLockShape() {
+      return request.resource.data.keys().hasOnly([
+            'appointmentId',
+            'doctorId',
+            'date',
+            'timeSlot',
+            'lockedAt'
+          ]) &&
+          request.resource.data.keys().hasAll([
+            'appointmentId',
+            'doctorId',
+            'date',
+            'timeSlot'
+          ]) &&
+          request.resource.data.appointmentId is string &&
+          request.resource.data.doctorId is string &&
+          request.resource.data.date is string &&
+          request.resource.data.timeSlot is string;
+    }
+
+    function slotLockOwnedByPatient(lockData) {
+      return isPatient() &&
+          ('appointmentId' in lockData) &&
+          lockData.appointmentId is string &&
+          exists(appointmentDocPath(lockData.appointmentId)) &&
+          get(appointmentDocPath(lockData.appointmentId)).data.patientId == request.auth.uid;
+    }
+
+    function validCounterWrite(counterId) {
+      return request.resource.data.keys().hasOnly([
+            'lastTicket',
+            'activeCount',
+            'doctorId',
+            'date',
+            'updatedAt'
+          ]) &&
+          request.resource.data.keys().hasAll([
+            'activeCount',
+            'doctorId',
+            'date'
+          ]) &&
+          request.resource.data.activeCount is number &&
+          request.resource.data.doctorId is string &&
+          request.resource.data.date is string &&
+          (!('lastTicket' in request.resource.data) ||
+            request.resource.data.lastTicket is number) &&
+          counterId ==
+            ('tickets_' +
+              request.resource.data.doctorId +
+              '_' +
+              request.resource.data.date);
+    }
+
+    function isAllowedPublicQueueStatus(status) {
+      return status in ['waiting', 'in-progress'];
+    }
+
+    function validQueuePublicEntryShape(entryData) {
+      return entryData.keys().hasOnly([
+            'appointmentId',
+            'doctorId',
+            'date',
+            'timeSlot',
+            'status',
+            'ticketNumber',
+            'priority',
+            'patientsAhead',
+            'queuePosition',
+            'estimatedWaitTime',
+            'updatedAt'
+          ]) &&
+          entryData.keys().hasAll([
+            'appointmentId',
+            'doctorId',
+            'date',
+            'timeSlot',
+            'status',
+            'ticketNumber',
+            'priority'
+          ]) &&
+          entryData.appointmentId is string &&
+          entryData.doctorId is string &&
+          entryData.date is string &&
+          entryData.timeSlot is string &&
+          entryData.status is string &&
+          entryData.ticketNumber is number &&
+          entryData.priority is string &&
+          isAllowedPublicQueueStatus(entryData.status) &&
+          (!('patientsAhead' in entryData) || entryData.patientsAhead is number) &&
+          (!('queuePosition' in entryData) || entryData.queuePosition is number) &&
+          (!('estimatedWaitTime' in entryData) || entryData.estimatedWaitTime is number);
+    }
+
+    function queuePublicEntryMatchesPath(queueKey, entryData) {
+      return queueKey == (entryData.doctorId + '_' + entryData.date);
+    }
+
+    function queuePublicEntryMatchesAppointment(entryData) {
+      return exists(appointmentDocPath(entryData.appointmentId)) &&
+          get(appointmentDocPath(entryData.appointmentId)).data.doctorId ==
+            entryData.doctorId &&
+          get(appointmentDocPath(entryData.appointmentId)).data.date ==
+            entryData.date &&
+          get(appointmentDocPath(entryData.appointmentId)).data.timeSlot ==
+            entryData.timeSlot &&
+          get(appointmentDocPath(entryData.appointmentId)).data.ticketNumber ==
+            entryData.ticketNumber;
+    }
+
+    function queuePublicEntryOwnedByPatient(entryData) {
+      return isPatient() &&
+          exists(appointmentDocPath(entryData.appointmentId)) &&
+          get(appointmentDocPath(entryData.appointmentId)).data.patientId ==
+            request.auth.uid;
+    }
+
+    function validQueuePublicMetaShape(metaData) {
+      return metaData.keys().hasOnly([
+            'doctorId',
+            'date',
+            'updatedAt'
+          ]) &&
+          metaData.keys().hasAll([
+            'doctorId',
+            'date'
+          ]) &&
+          metaData.doctorId is string &&
+          metaData.date is string;
+    }
+
+    function queuePublicMetaMatchesPath(queueKey, metaData) {
+      return queueKey == (metaData.doctorId + '_' + metaData.date);
+    }
+
+    function chatDocPath(chatId) {
+      return /databases/$(database)/documents/doctor_patient_chats/$(chatId);
+    }
+
+    function isChatParticipant(chatData) {
+      return isSignedIn() &&
+          chatData != null &&
+          (chatData.patientId == request.auth.uid ||
+            chatData.doctorId == request.auth.uid);
+    }
+
+    function validChatDocument(chatData) {
+      return chatData.keys().hasAll([
+            'doctorId',
+            'patientId',
+            'participantIds'
+          ]) &&
+          chatData.doctorId is string &&
+          chatData.patientId is string &&
+          chatData.participantIds is list &&
+          chatData.participantIds.hasAll([
+            chatData.doctorId,
+            chatData.patientId
+          ]);
+    }
+
+    function validChatMessage(messageData, chatData) {
+      return messageData.keys().hasAll([
+            'senderId',
+            'senderRole',
+            'text',
+            'type'
+          ]) &&
+          messageData.senderId == request.auth.uid &&
+          messageData.senderRole in ['patient', 'doctor'] &&
+          messageData.text is string &&
+          messageData.text.size() > 0 &&
+          messageData.type == 'text' &&
+          isChatParticipant(chatData);
+    }
+
+    match /users/{userId} {
+      allow read: if isAdmin() || isOwner(userId);
+
+      allow create: if validSelfPatientCreate(userId) || isAdmin();
+
+      allow update: if isAdmin() || validSelfUserUpdate(userId);
+
+      allow delete: if isAdmin();
+
+      // Patient notification center (users/{userId}/notifications/{notificationId})
+      match /notifications/{notificationId} {
+        allow read: if isAdmin() || isOwner(userId);
+        allow create, update, delete: if isAdmin() || isOwner(userId);
+      }
+    }
+
+    match /doctors/{doctorId} {
+      allow read: if isSignedIn();
+
+      allow create, delete: if isAdmin();
+
+      allow update: if isAdmin() ||
+        (isDoctor() &&
+          isOwner(doctorId) &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'isAvailable',
+            'currentState',
+            'stateUpdatedAt',
+            'avgConsultationTime',
+            'totalCompletedAppointments',
+            'noShowRate',
+            'updatedAt'
+          ])) ||
+        (isReceptionist() &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'currentState',
+            'stateUpdatedAt',
+            'avgConsultationTime',
+            'totalCompletedAppointments',
+            'noShowRate',
+            'updatedAt'
+          ]));
+    }
+
+    match /doctors/{doctorId}/reviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isPatient() &&
+          request.resource.data.patientId == request.auth.uid;
+      allow update, delete: if isAdmin() ||
+          (isPatient() && resource.data.patientId == request.auth.uid);
+    }
+
+    match /appointments/{appointmentId} {
+      allow read: if isAdmin() ||
+          (isActiveCaller() && isReceptionist()) ||
+          (isActiveCaller() &&
+            isDoctor() &&
+            resource.data.doctorId == request.auth.uid) ||
+          (isActiveCaller() &&
+            isPatient() &&
+            resource.data.patientId == request.auth.uid);
+
+      allow create: if validPatientAppointmentCreate() ||
+          isAdmin() ||
+          (isActiveCaller() && isReceptionist());
+
+      allow update: if isAdmin() ||
+          (isActiveCaller() &&
+            isReceptionist() &&
+            validStaffAppointmentUpdate()) ||
+          (isActiveCaller() &&
+            isDoctor() &&
+            resource.data.doctorId == request.auth.uid &&
+            validStaffAppointmentUpdate()) ||
+          validPatientAppointmentUpdate();
+
+      allow delete: if isAdmin() ||
+          (isActiveCaller() && isReceptionist()) ||
+          (isActiveCaller() &&
+            isPatient() &&
+            resource.data.patientId == request.auth.uid &&
+            resource.data.paymentStatus in ['pending', 'free'] &&
+            resource.data.status in ['waiting', 'cancelled']);
+    }
+
+    match /doctor_patient_chats/{chatId} {
+      allow read: if isAdmin() ||
+          (isActiveCaller() && isChatParticipant(resource.data));
+
+      allow create: if isActiveCaller() &&
+          validChatDocument(request.resource.data) &&
+          isChatParticipant(request.resource.data);
+
+      allow update: if isActiveCaller() &&
+          isChatParticipant(resource.data) &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'lastMessage',
+            'lastSenderId',
+            'lastMessageAt',
+            'updatedAt',
+            'doctorName',
+            'patientName',
+            'participantIds'
+          ]);
+
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isAdmin() ||
+            (isActiveCaller() &&
+              exists(chatDocPath(chatId)) &&
+              isChatParticipant(get(chatDocPath(chatId)).data));
+
+        allow create: if isActiveCaller() &&
+            exists(chatDocPath(chatId)) &&
+            validChatMessage(
+              request.resource.data,
+              get(chatDocPath(chatId)).data
+            );
+
+        allow update: if isActiveCaller() &&
+            exists(chatDocPath(chatId)) &&
+            isChatParticipant(get(chatDocPath(chatId)).data) &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              'readBy',
+              'updatedAt'
+            ]);
+
+        allow delete: if isAdmin();
+      }
+    }
+
+    match /slot_locks/{lockId} {
+      allow read: if isActiveCaller();
+
+      allow create: if isActiveCaller() &&
+          validSlotLockShape() &&
+          (isAdmin() ||
+            isReceptionist() ||
+            (isDoctor() && request.resource.data.doctorId == request.auth.uid) ||
+            isPatient());
+
+      allow update: if false;
+
+      allow delete: if isAdmin() ||
+          isReceptionist() ||
+          (isDoctor() && resource.data.doctorId == request.auth.uid) ||
+          slotLockOwnedByPatient(resource.data);
+    }
+
+    match /counters/{counterId} {
+      allow read: if isActiveCaller();
+
+      allow create, update: if isActiveCaller() &&
+          validCounterWrite(counterId) &&
+          (isAdmin() || isReceptionist() || isDoctor() || isPatient());
+
+      allow delete: if isAdmin();
+    }
+
+    match /queue_public/{queueKey} {
+      allow read: if isActiveCaller();
+      allow create, update: if isActiveCaller() &&
+          validQueuePublicMetaShape(request.resource.data) &&
+          queuePublicMetaMatchesPath(queueKey, request.resource.data);
+      allow delete: if false;
+
+      match /entries/{entryId} {
+        allow read: if isActiveCaller();
+
+        allow create: if isActiveCaller() &&
+            validQueuePublicEntryShape(request.resource.data) &&
+            entryId == request.resource.data.appointmentId &&
+            queuePublicEntryMatchesPath(queueKey, request.resource.data) &&
+            queuePublicEntryMatchesAppointment(request.resource.data) &&
+            (isAdmin() ||
+              isReceptionist() ||
+              isDoctor() ||
+              queuePublicEntryOwnedByPatient(request.resource.data));
+
+        allow update: if isActiveCaller() &&
+            validQueuePublicEntryShape(request.resource.data) &&
+            ('appointmentId' in resource.data) &&
+            entryId == resource.data.appointmentId &&
+            request.resource.data.appointmentId == resource.data.appointmentId &&
+            queuePublicEntryMatchesPath(queueKey, request.resource.data) &&
+            queuePublicEntryMatchesAppointment(request.resource.data) &&
+            (isAdmin() ||
+              isReceptionist() ||
+              isDoctor() ||
+              queuePublicEntryOwnedByPatient(resource.data));
+
+        allow delete: if isActiveCaller() &&
+            ('appointmentId' in resource.data) &&
+            (isAdmin() ||
+              isReceptionist() ||
+              isDoctor() ||
+              queuePublicEntryOwnedByPatient(resource.data));
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

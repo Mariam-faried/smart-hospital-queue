@@ -1,0 +1,6 @@
+﻿Analyzing queue_tab.dart...
+
+  error - queue_tab.dart:529:34 - The method '_buildStatBadge' isn't defined for the type '_QueueTabState'. Try correcting the name to the name of an existing method, or defining a method named '_buildStatBadge'. - undefined_method
+  error - queue_tab.dart:537:41 - The method '_buildCountdownBadge' isn't defined for the type '_QueueTabState'. Try correcting the name to the name of an existing method, or defining a method named '_buildCountdownBadge'. - undefined_method
+
+2 issues found.

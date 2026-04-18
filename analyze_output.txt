@@ -1,0 +1,9 @@
+﻿Analyzing smart_hospital_queue...                               
+
+   info - Parameter 'key' could be a super parameter - lib\screens\admin\admin_dashboard.dart:8:9 - use_super_parameters
+   info - Parameter 'key' could be a super parameter - lib\screens\admin\admin_user_management_screen.dart:7:9 - use_super_parameters
+   info - Parameter 'key' could be a super parameter - lib\screens\admin\admin_user_management_screen.dart:64:9 - use_super_parameters
+  error - The name 'AuthProvider' is defined in the libraries 'package:firebase_auth_platform_interface/src/auth_provider.dart (via package:firebase_auth/firebase_auth.dart)' and 'package:smart_hospital_queue/providers/auth_provider.dart' - lib\screens\auth\login_screen.dart:48:40 - ambiguous_import
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\screens\auth\register_screen.dart:416:29 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\widgets\admin\pending_doctor_card.dart:10:9 - use_super_parameters
+

@@ -1,0 +1,29 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "smart-hospital-queue-ace7d",
+          "appId": "1:688417777248:android:0108de24ca092e1c648505",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "smart-hospital-queue-ace7d",
+          "configurations": {
+            "android": "1:688417777248:android:0108de24ca092e1c648505",
+            "ios": "1:688417777248:ios:1241d80f4ad72ed1648505"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": {
+    "source": "functions"
+  }
+}

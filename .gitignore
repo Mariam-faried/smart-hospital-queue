@@ -1,0 +1,8 @@
+﻿
+.config/
+.firebase/
+google-services.json
+firebase_options.dart
+.dart_tool/
+build/
+

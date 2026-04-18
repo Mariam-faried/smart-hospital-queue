@@ -1,0 +1,7 @@
+Analyzing smart_hospital_queue...                               
+
+warning - Unnecessary cast - lib\screens\patient\appointments_tab.dart:90:22 - unnecessary_cast
+warning - Unnecessary cast - lib\screens\patient\appointments_tab.dart:104:23 - unnecessary_cast
+warning - Unnecessary cast - lib\screens\patient\appointments_tab.dart:105:23 - unnecessary_cast
+  error - The named parameter 'completedTicketNumber' is required, but there's no corresponding argument - lib\screens\patient\appointments_tab.dart:390:32 - missing_required_argument
+

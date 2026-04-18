@@ -1,0 +1,4 @@
+Analyzing smart_hospital_queue...                               
+
+   info - Don't use 'BuildContext's across async gaps - lib\screens\patient\queue_tab.dart:1382:30 - use_build_context_synchronously
+
